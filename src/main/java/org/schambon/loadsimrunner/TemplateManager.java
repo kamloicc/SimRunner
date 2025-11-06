@@ -34,6 +34,7 @@ import static com.mongodb.client.model.Filters.*;
 
 import org.bson.Document;
 import org.schambon.loadsimrunner.client.EnhancedMongoClientHelper;
+import org.schambon.loadsimrunner.config.IndexDefinition;
 import org.schambon.loadsimrunner.errors.InvalidConfigException;
 import org.schambon.loadsimrunner.generators.Address;
 import org.schambon.loadsimrunner.generators.Name;
@@ -71,7 +72,7 @@ public class TemplateManager {
     private Set<RememberField> fieldsToRemember = new HashSet<>();
     private Map<String, List<Object>> remembrances = new TreeMap<>();
 
-    private List<Document> indexes;
+    private List<IndexDefinition> indexes;
 
     private MongoCollection<Document> mongoColl = null;
 
@@ -159,10 +160,11 @@ public class TemplateManager {
             this.remembrances.put(rfield.name, Collections.synchronizedList(new ArrayList<>()));
         }
 
+        this.indexes = new ArrayList<>();
         if (config.containsKey("indexes")) {
-            this.indexes = config.getList("indexes", Document.class);
-        } else {
-            this.indexes = Collections.emptyList();
+            for (var indexDoc : config.getList("indexes", Document.class)){
+                this.indexes.add(new IndexDefinition(indexDoc));
+            }
         }
 
         if (config.containsKey("dictionaries")) {
@@ -233,8 +235,8 @@ public class TemplateManager {
 
             _preloadRememberedFields();
 
-            for (Document indexDef : indexes) {
-                mongoColl.createIndex(indexDef);
+            for (IndexDefinition indexDef : indexes) {
+                mongoColl.createIndex(indexDef.getKeys(), indexDef.getOptions());
             }
             reporter.reportInit(String.format("\tCreated %d indexes", indexes.size()));
 
@@ -272,7 +274,7 @@ public class TemplateManager {
     /**
      * Explicitly remember a value
      * @param fieldName
-     * @param value
+     * @param values
      */
     public void remember(String fieldName, List<? extends Object> values) {
         _doRemember(fieldName, values);
