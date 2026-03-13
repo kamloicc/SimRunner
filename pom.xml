@@ -73,12 +73,12 @@
     <dependency>
       <groupId>org.mongodb</groupId>
       <artifactId>mongodb-driver-sync</artifactId>
-      <version>4.11.1</version>
+      <version>5.2.1</version>
     </dependency>
     <dependency>
       <groupId>org.mongodb</groupId>
       <artifactId>mongodb-crypt</artifactId>
-      <version>1.8.0</version>
+      <version>1.11.0</version>
     </dependency>
     <dependency>
       <groupId>commons-cli</groupId>

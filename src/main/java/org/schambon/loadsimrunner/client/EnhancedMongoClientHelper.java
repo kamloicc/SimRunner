@@ -28,6 +28,8 @@ import com.mongodb.AutoEncryptionSettings;
 import com.mongodb.ClientEncryptionSettings;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
+import com.mongodb.ServerApi;
+import com.mongodb.ServerApiVersion;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoDatabase;
@@ -96,7 +98,10 @@ public class EnhancedMongoClientHelper {
         ConnectionString connectionString = new ConnectionString(uri);
         MongoClientSettings.Builder settingsBuilder = MongoClientSettings.builder()
             .applyConnectionString(connectionString)
-            .uuidRepresentation(UuidRepresentation.STANDARD);
+            .uuidRepresentation(UuidRepresentation.STANDARD)
+            .serverApi(ServerApi.builder().version(ServerApiVersion.V1).build())
+            .retryWrites(true)
+            .retryReads(true);
 
         // Check if this is a DocumentDB connection (standard mongodb:// scheme)
         if (isDocumentDBConnection(uri)) {

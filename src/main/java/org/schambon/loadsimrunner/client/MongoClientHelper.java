@@ -19,6 +19,8 @@ import com.mongodb.AutoEncryptionSettings;
 import com.mongodb.ClientEncryptionSettings;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
+import com.mongodb.ServerApi;
+import com.mongodb.ServerApiVersion;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoDatabase;
@@ -52,6 +54,9 @@ public class MongoClientHelper {
             return MongoClients.create(MongoClientSettings.builder()
                 .applyConnectionString(new ConnectionString(uri))
                 .uuidRepresentation(UuidRepresentation.STANDARD)
+                .serverApi(ServerApi.builder().version(ServerApiVersion.V1).build())
+                .retryWrites(true)
+                .retryReads(true)
                 .build());
             
         } else {
@@ -70,6 +75,9 @@ public class MongoClientHelper {
             var clientSettings = MongoClientSettings.builder()
                 .applyConnectionString(new ConnectionString(uri))
                 .autoEncryptionSettings(autoEncryptionSettings)
+                .serverApi(ServerApi.builder().version(ServerApiVersion.V1).build())
+                .retryWrites(true)
+                .retryReads(true)
                 .build();
 
             var encryptedClient = MongoClients.create(clientSettings);
@@ -80,7 +88,12 @@ public class MongoClientHelper {
             }
 
             var clientEncryptionSettings = ClientEncryptionSettings.builder()
-                .keyVaultMongoClientSettings(MongoClientSettings.builder().applyConnectionString(new ConnectionString(keyVaultUri)).build())
+                .keyVaultMongoClientSettings(MongoClientSettings.builder()
+                    .applyConnectionString(new ConnectionString(keyVaultUri))
+                    .serverApi(ServerApi.builder().version(ServerApiVersion.V1).build())
+                    .retryWrites(true)
+                    .retryReads(true)
+                    .build())
                 .keyVaultNamespace(encryption.getString("keyVaultNamespace"))
                 .kmsProviders(kmsProviderCredentials)
                 .build();

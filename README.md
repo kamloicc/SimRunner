@@ -83,6 +83,7 @@ What's new?
 
 | Date       |                                                                                                |
 |------------|------------------------------------------------------------------------------------------------|
+| 2026-03-13 | Upgraded to MongoDB Java Driver 5.2.1 with MongoDB 6/7/8 compatibility                         |
 | 2025-10-22 | Support for all index properties                                                               |
 | 2025-10-07 | Compatibility with Amazon DocumentDB                                                           |
 | 2025-04-22 | Adding variables scope parameter (batch/operation)                                             |
