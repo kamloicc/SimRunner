@@ -1004,3 +1004,222 @@ Limitations
 * Does not support arrayfilters, hint
 * No declarative support for transactions or indeed, multi-operation workflows ("read one doc and update another") - you have to use custom runners for that.
 
+Deployment to Azure Kubernetes Service (AKS)
+---------------------------------------------
+
+This repository is configured for automated deployment to Azure Kubernetes Service (AKS) with continuous delivery via GitHub Actions.
+
+### Prerequisites
+
+- Azure CLI installed (`az` command)
+- Azure subscription
+- kubectl installed
+- Docker installed (for local testing)
+
+### Azure Resources Setup
+
+#### 1. Create Azure Container Registry (ACR)
+
+```bash
+# Set variables
+RESOURCE_GROUP="simrunner-rg"
+LOCATION="eastus"
+ACR_NAME="simrunneracr"
+
+# Create resource group
+az group create --name $RESOURCE_GROUP --location $LOCATION
+
+# Create Azure Container Registry
+az acr create \
+  --resource-group $RESOURCE_GROUP \
+  --name $ACR_NAME \
+  --sku Basic
+
+# Enable admin access
+az acr update --name $ACR_NAME --admin-enabled true
+
+# Get ACR credentials
+az acr credential show --name $ACR_NAME
+```
+
+#### 2. Create AKS Cluster
+
+```bash
+# Set variables
+AKS_CLUSTER_NAME="simrunner-aks"
+
+# Create AKS cluster
+az aks create \
+  --resource-group $RESOURCE_GROUP \
+  --name $AKS_CLUSTER_NAME \
+  --node-count 2 \
+  --node-vm-size Standard_B2s \
+  --enable-managed-identity \
+  --generate-ssh-keys \
+  --attach-acr $ACR_NAME
+
+# Get AKS credentials
+az aks get-credentials \
+  --resource-group $RESOURCE_GROUP \
+  --name $AKS_CLUSTER_NAME
+```
+
+#### 3. Deploy Initial Kubernetes Resources
+
+```bash
+# Update the deployment.yaml with your ACR name
+sed -i "s|myacr.azurecr.io|${ACR_NAME}.azurecr.io|g" k8s/deployment.yaml
+
+# Create Kubernetes secret for MongoDB connection (optional)
+kubectl create secret generic simrunner-secrets \
+  --from-literal=mongo-uri='mongodb+srv://user:password@cluster.mongodb.net/database' \
+  --from-literal=reporter-mongo-uri='mongodb+srv://user:password@cluster.mongodb.net/reporter'
+
+# Apply Kubernetes configurations
+kubectl apply -f k8s/deployment.yaml
+kubectl apply -f k8s/service.yaml
+
+# Verify deployment
+kubectl get pods
+kubectl get svc
+```
+
+### GitHub Secrets Configuration
+
+Configure the following secrets in your GitHub repository (Settings → Secrets and variables → Actions):
+
+#### Required Secrets:
+
+1. **AZURE_CREDENTIALS**
+   ```bash
+   # Create service principal and get credentials
+   az ad sp create-for-rbac \
+     --name "simrunner-github-actions" \
+     --role contributor \
+     --scopes /subscriptions/{subscription-id}/resourceGroups/$RESOURCE_GROUP \
+     --sdk-auth
+   ```
+   Copy the entire JSON output and paste as the secret value.
+
+2. **ACR_LOGIN_SERVER**
+   ```bash
+   echo "${ACR_NAME}.azurecr.io"
+   ```
+
+3. **ACR_USERNAME**
+   ```bash
+   az acr credential show --name $ACR_NAME --query username -o tsv
+   ```
+
+4. **ACR_PASSWORD**
+   ```bash
+   az acr credential show --name $ACR_NAME --query "passwords[0].value" -o tsv
+   ```
+
+5. **AKS_CLUSTER_NAME**
+   ```bash
+   echo $AKS_CLUSTER_NAME
+   ```
+
+6. **AKS_RESOURCE_GROUP**
+   ```bash
+   echo $RESOURCE_GROUP
+   ```
+
+### Continuous Deployment Workflow
+
+Every push to the `master` branch triggers:
+
+1. **Build**: Docker image is built using multi-stage build
+2. **Push**: Image is tagged with commit SHA and `latest` and pushed to ACR
+3. **Deploy**: Kubernetes deployment is updated with the new image
+4. **Verify**: Deployment rollout is verified
+
+Monitor deployments:
+```bash
+# Watch deployment status
+kubectl rollout status deployment/simrunner
+
+# View pods
+kubectl get pods -l app=simrunner
+
+# View logs
+kubectl logs -l app=simrunner --tail=100 -f
+
+# Check service
+kubectl get svc simrunner
+```
+
+### Local Testing
+
+Test the Docker build locally:
+
+```bash
+# Build image
+docker build -t simrunner:local .
+
+# Run container
+docker run -p 3000:3000 \
+  -e MONGO_URI='mongodb://localhost:27017' \
+  -v $(pwd)/sample.json:/app/config.json \
+  simrunner:local /app/config.json
+```
+
+### Configuration Management
+
+SimRunner requires a configuration file. You have several options:
+
+1. **ConfigMap** (recommended for non-sensitive data):
+   ```bash
+   kubectl create configmap simrunner-config \
+     --from-file=config.json=./sample.json
+   ```
+
+2. **Volume mount** from external storage
+
+3. **Build into image** (not recommended for production)
+
+### Scaling
+
+Scale the deployment:
+```bash
+kubectl scale deployment simrunner --replicas=3
+```
+
+### Cleanup
+
+Remove all resources:
+```bash
+# Delete Kubernetes resources
+kubectl delete -f k8s/
+
+# Delete AKS cluster
+az aks delete \
+  --resource-group $RESOURCE_GROUP \
+  --name $AKS_CLUSTER_NAME \
+  --yes --no-wait
+
+# Delete ACR
+az acr delete \
+  --resource-group $RESOURCE_GROUP \
+  --name $ACR_NAME \
+  --yes
+
+# Delete resource group
+az group delete --name $RESOURCE_GROUP --yes --no-wait
+```
+
+### Troubleshooting
+
+View deployment events:
+```bash
+kubectl describe deployment simrunner
+kubectl describe pod <pod-name>
+kubectl logs <pod-name>
+```
+
+Check GitHub Actions:
+- Go to repository → Actions tab
+- View workflow runs and logs
+- Verify secrets are configured correctly
+
