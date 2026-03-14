@@ -35,22 +35,21 @@ public class Report {
     }
 
     private String workloadReport(String name, Document wlReport) {
-        return String.format("%s:\n==========\n%d ops per second (%d total)\n%d records per second (%d total)\n%f ms mean duration\npercentiles: %s\n%f / %f / %f Batch size avg / min / max\n[util %%: %f -- report computed in %d]",
+        return String.format("%s:\n==========\n%d ops per second (%d total)\n%d records per second (%d total)\nLatency: p50=%.2fms, p90=%.2fms, p95=%.2fms, p99=%.2fms, p999=%.2fms, max=%.2fms (mean=%.2fms)\n%.2f Batch size avg\n[util %%: %.2f -- report computed in %d]",
             name,
             wlReport.getLong("ops"), wlReport.getLong("total ops"),
             wlReport.getLong("records"), wlReport.getLong("total records"),
+            wlReport.getDouble("p50"),
+            wlReport.getDouble("p90"),
+            wlReport.getDouble("p95"),
+            wlReport.getDouble("p99"),
+            wlReport.getDouble("p999"),
+            wlReport.getDouble("max"),
             wlReport.getDouble("mean duration"),
-            percentilesToString((List<Document>) wlReport.get("percentiles")),
             wlReport.getDouble("mean batch size"),
-            wlReport.getDouble("min batch size"),
-            wlReport.getDouble("max batch size"),
             wlReport.getDouble("client util"),
             wlReport.getLong("report compute time")
         );
-    } 
-
-    private String percentilesToString(List<Document> list) {
-        return list.stream().map(doc -> String.format("P%d: %d", doc.getInteger("p"), doc.getLong("value"))).collect(Collectors.toList()).toString();
     }
 
     public String toJSON() {

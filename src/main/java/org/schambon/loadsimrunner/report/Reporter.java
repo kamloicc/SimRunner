@@ -17,8 +17,6 @@ import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.collect.TreeMultiset;
-import com.google.common.math.Stats;
 
 public class Reporter {
 
@@ -106,72 +104,58 @@ public class Reporter {
 
     private static class StatsHolder {
 
-        AtomicLong numops = new AtomicLong(0);
-        // List<Long> durationsBatch = new ArrayList<>();
-        TreeMultiset<Long> durationsBatch = TreeMultiset.create();
-        List<Long> numbers = new ArrayList<>();
+        AtomicLong numOps = new AtomicLong(0);
+        AtomicLong totalRecords = new AtomicLong(0);
+        AtomicLong totalDuration = new AtomicLong(0);
+        LatencyTracker latencyTracker = new LatencyTracker();
 
-        // Compute some statistics
-        // interval is the overall duration
         public Document compute(long interval, List<Integer> percentiles) {
-
             var __startCompute = currentTimeMillis();
 
-            List<Long> durations = new ArrayList<>();
-            durations.addAll(durationsBatch);
+            long ops = numOps.getAndSet(0);
+            long records = totalRecords.getAndSet(0);
+            long duration = totalDuration.getAndSet(0);
+            
+            LatencyTracker.LatencySnapshot snapshot = latencyTracker.getSnapshotAndReset();
 
-            List<Document> computedPercentiles = new ArrayList<>(percentiles.size());
-            for (int _p : percentiles) {
-                double p = (double)_p/100d;
-
-                var index = (int)Math.ceil(p * (double)durations.size());
-                if (index >= durations.size()) {
-                    index = Math.max(0, durations.size() - 1);
-                }
-                long pctVal = durations.get(index);
-                computedPercentiles.add(new Document("p", _p).append("value", pctVal));
+            if (ops == 0) {
+                return null;
             }
 
-            // var ninetyFifthIndex = (int)Math.ceil(.95d * (double)durations.size());
-            // if (ninetyFifthIndex >= durations.size()) {
-            //     ninetyFifthIndex = Math.max(0, durations.size()-1);
-            // }
-            // long ninetyFifth = durations.get(ninetyFifthIndex);
-            // long fiftieth = durations.size() > 1 ? durations.get(durations.size()/2) : 0;
+            long opsPerSec = (long) (ops / ((double)interval/1000.0));
+            long recordsPerSec = (long) (records / ((double)interval/1000.0));
+            double meanBatchSize = records / (double) ops;
+            double util = 100.0 * duration / (double) interval;
 
-            Stats batchStats = Stats.of(durations);
-            var meanBatch = batchStats.mean();
-            var util = 100. * batchStats.sum() / (double) interval;
-            var numberStats = Stats.of(numbers);
-
-            long totalOps = (long) (numberStats.count() /  ((double)interval/1000.d));
-            // TODO fix this properly - there are times when the number goes through the roof, either because of an overflow or because `interval` is too small.
-            if (totalOps > 1e10) {
-                LOGGER.warn("Computed very large ops number {}. Count is {}, interval is {}", totalOps, numberStats.count(), interval);
+            if (opsPerSec > 1e10) {
+                LOGGER.warn("Computed very large ops number {}. Ops: {}, interval: {}", opsPerSec, ops, interval);
                 return null;
             }
 
             Document wlReport = new Document();
-
-            wlReport.append("ops", totalOps);
-            wlReport.append("records", (long) (numberStats.sum() / (double) (interval/1000)));
-            wlReport.append("total ops", numberStats.count());
-            wlReport.append("total records", (long)numberStats.sum());
-            wlReport.append("mean duration", meanBatch);
-            wlReport.append("percentiles", computedPercentiles);
-            wlReport.append("mean batch size", numberStats.mean());
-            wlReport.append("min batch size", numberStats.min());
-            wlReport.append("max batch size", numberStats.max());
+            wlReport.append("ops", opsPerSec);
+            wlReport.append("records", recordsPerSec);
+            wlReport.append("total ops", ops);
+            wlReport.append("total records", records);
+            wlReport.append("mean duration", snapshot.mean);
+            wlReport.append("p50", snapshot.p50);
+            wlReport.append("p90", snapshot.p90);
+            wlReport.append("p95", snapshot.p95);
+            wlReport.append("p99", snapshot.p99);
+            wlReport.append("p999", snapshot.p999);
+            wlReport.append("max", snapshot.max);
+            wlReport.append("mean batch size", meanBatchSize);
             wlReport.append("client util", util);
             wlReport.append("report compute time", currentTimeMillis() - __startCompute);
 
             return wlReport;
-
         }
 
         public void addOp(long number, long duration) {
-            numops.incrementAndGet();
-            Reporter.asyncExecutor.submit(() ->  {durationsBatch.add(duration); numbers.add(number);});
+            numOps.incrementAndGet();
+            totalRecords.addAndGet(number);
+            totalDuration.addAndGet(duration);
+            latencyTracker.recordLatency(duration);
         }
     }
 }
