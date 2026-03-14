@@ -819,6 +819,10 @@ public class TemplateManager {
             case "%arrayElement":
                 return ValueGenerators.arrayElemAt(params);
 
+            // shard distribution
+            case "%shardDistribution":
+                return ValueGenerators.shardDistribution(params);
+
             // faker
             default:
                 return ValueGenerators.autoFaker(operator);

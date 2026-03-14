@@ -83,6 +83,7 @@ What's new?
 
 | Date       |                                                                                                |
 |------------|------------------------------------------------------------------------------------------------|
+| 2026-03-14 | Shard key distribution models (uniform, zipfian, monotonic, hotspot)                           |
 | 2026-03-14 | High-resolution latency histograms with HdrHistogram (p50/p90/p95/p99/p999)                   |
 | 2026-03-14 | Mixed workload support with weighted operations for realistic load testing                     |
 | 2026-03-14 | Configurable connection pool settings for load testing optimization                            |

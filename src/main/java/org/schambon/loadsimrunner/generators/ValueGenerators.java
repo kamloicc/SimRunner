@@ -849,4 +849,41 @@ public class ValueGenerators {
             return ((List) arr).get(at);
         };
     }
+
+    public static Generator shardDistribution(DocumentGenerator input) {
+        return () -> {
+            var params = input.generateDocument();
+            String distribution = params.getString("distribution");
+            long min = params.getLong("min", 0L);
+            long max = params.getLong("max", 1000000L);
+            
+            if (distribution == null) {
+                distribution = "uniform";
+            }
+            
+            ShardDistribution dist;
+            switch (distribution.toLowerCase()) {
+                case "uniform":
+                    dist = new UniformDistribution(min, max);
+                    break;
+                case "zipfian":
+                    double exponent = params.getDouble("exponent", 0.8);
+                    dist = new ZipfianDistribution(min, max, exponent);
+                    break;
+                case "monotonic":
+                    dist = new MonotonicDistribution(min);
+                    break;
+                case "hotspot":
+                    double hotspotPercentage = params.getDouble("hotspotPercentage", 10.0);
+                    double hotspotProbability = params.getDouble("hotspotProbability", 0.8);
+                    dist = new HotspotDistribution(min, max, hotspotPercentage, hotspotProbability);
+                    break;
+                default:
+                    LOGGER.warn("Unknown shard distribution: {}, using uniform", distribution);
+                    dist = new UniformDistribution(min, max);
+            }
+            
+            return dist.nextValue();
+        };
+    }
 }

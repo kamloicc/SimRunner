@@ -80,7 +80,8 @@
                 "gaussianInt": {"%gaussian": {"mean": 10, "sd": 1.0, "type": "int"}},
                 "gaussianDouble" : {"%gaussian": {"mean": 1, "sd": 0.000005, "type": "double"}},
                 "longlat": {"%longlat": {"countries": ["FR", "DE"], "jitter": 0.5}},
-                "dictionaryConcat": {"%dictionaryConcat": {"from": "words", "length": {"%natural": {"max": 10}}, "sep": " "}}
+                "dictionaryConcat": {"%dictionaryConcat": {"from": "words", "length": {"%natural": {"max": 10}}, "sep": " "}},
+                "shardKey": {"%shardDistribution": {"distribution": "zipfian", "min": 0, "max": 1000000, "exponent": 0.8}}
              },
             "remember": [{"field": "first","preload": false}, "sentence"],
             "indexes": [ { "first": 1} ]
