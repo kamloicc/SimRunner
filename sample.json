@@ -97,6 +97,15 @@
             "batch": 100
         },
         {
+            "disabled": true,
+            "name": "Async Insert",
+            "template": "person",
+            "op": "insert",
+            "asyncConcurrency": 2000,
+            "batch": 100,
+            "pace": 10
+        },
+        {
             "name": "Find by first name",
             "template": "person",
             "op": "find",

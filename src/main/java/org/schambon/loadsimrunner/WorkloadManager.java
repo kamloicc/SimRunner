@@ -14,6 +14,7 @@ import org.bson.Document;
 import org.schambon.loadsimrunner.errors.InvalidConfigException;
 import org.schambon.loadsimrunner.report.Reporter;
 import org.schambon.loadsimrunner.runner.AggregationRunner;
+import org.schambon.loadsimrunner.runner.AsyncRunner;
 import org.schambon.loadsimrunner.runner.BucketTimeSeriesRunner;
 import org.schambon.loadsimrunner.runner.CustomRunner;
 import org.schambon.loadsimrunner.runner.DeleteManyRunner;
@@ -44,6 +45,7 @@ public class WorkloadManager {
     int threads;
     int batch;
     int pace;
+    Integer asyncConcurrency = null;
     ReadPreference readPreference;
     ReadConcern readConcern;
     WriteConcern writeConcern;
@@ -98,6 +100,7 @@ public class WorkloadManager {
         this.threads = config.getInteger("threads", 1);
         this.batch =  config.getInteger("batch", 0);
         this.pace = config.getInteger("pace", 0);
+        this.asyncConcurrency = config.getInteger("asyncConcurrency");
         var varScope = config.getString("variablesScope");
         if("operation".equals(varScope)) {
             this.variablesScope = "operation";
@@ -183,6 +186,11 @@ public class WorkloadManager {
     }
 
     private Runnable getRunnable() {
+        if (asyncConcurrency != null && asyncConcurrency > 0) {
+            LOGGER.info("Workload {} using async execution with concurrency: {}", name, asyncConcurrency);
+            return new AsyncRunner(this, reporter, asyncConcurrency);
+        }
+        
         switch (op) {
             case "insert": return new InsertRunner(this, reporter);
             case "find": return new FindRunner(this, reporter);
