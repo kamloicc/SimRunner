@@ -1,5 +1,13 @@
 {
     "connectionString": "mongodb://localhost:27017",
+    "connectionPoolSettings": {
+        "maxPoolSize": 100,
+        "minPoolSize": 10,
+        "maxConnecting": 2,
+        "waitQueueTimeout": 120000,
+        "socketTimeout": 0,
+        "compressors": ["snappy", "zstd"]
+    },
     "http": {
         "enabled": true,
         "port": 3000,

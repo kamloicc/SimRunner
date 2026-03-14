@@ -125,7 +125,7 @@ public class SimRunner {
             // bit ugly: we have to drop collections before initialising the main MongoClient since it can create encrypted collections, which would error out if they already exist
             dropCollectionsIfNecessary(connectionString, (List<Document>) config.get("templates"));
 
-            this.client = EnhancedMongoClientHelper.client(connectionString, (Document) config.get("tlsOptions"), (Document) config.get("encryption"));
+            this.client = EnhancedMongoClientHelper.client(connectionString, (Document) config.get("tlsOptions"), (Document) config.get("connectionPoolSettings"), (Document) config.get("encryption"));
 
             Document commandResult = client.getDatabase("admin").runCommand(new Document("isMaster", 1));
             if (!commandResult.getBoolean("ismaster")) {

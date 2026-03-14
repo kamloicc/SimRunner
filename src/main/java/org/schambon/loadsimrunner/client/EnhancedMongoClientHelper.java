@@ -28,6 +28,7 @@ import com.mongodb.AutoEncryptionSettings;
 import com.mongodb.ClientEncryptionSettings;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
+import com.mongodb.MongoCompressor;
 import com.mongodb.ServerApi;
 import com.mongodb.ServerApiVersion;
 import com.mongodb.client.MongoClient;
@@ -37,6 +38,8 @@ import com.mongodb.client.model.CreateCollectionOptions;
 import com.mongodb.client.model.CreateEncryptedCollectionParams;
 import com.mongodb.client.vault.ClientEncryption;
 import com.mongodb.client.vault.ClientEncryptions;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Enhanced MongoClientHelper that supports both MongoDB Atlas (mongodb+srv://) 
@@ -47,13 +50,13 @@ public class EnhancedMongoClientHelper {
     private static final Logger LOGGER = LoggerFactory.getLogger(EnhancedMongoClientHelper.class);
     
     public static void doInTemporaryClient(String uri, TaskWithClient task) {
-        try (var client = MongoClients.create(buildClientSettings(uri, null, null))) {
+        try (var client = MongoClients.create(buildClientSettings(uri, null, null, null))) {
             task.run(client);
         }
     }
 
     public static void doInTemporaryClient(String uri, Document tlsConfig, TaskWithClient task) {
-        try (var client = MongoClients.create(buildClientSettings(uri, tlsConfig, null))) {
+        try (var client = MongoClients.create(buildClientSettings(uri, tlsConfig, null, null))) {
             task.run(client);
         }
     }
@@ -70,31 +73,24 @@ public class EnhancedMongoClientHelper {
      * @return Configured MongoClient
      */
     public static MongoClient client(String uri, Document encryption) {
-        return client(uri, null, encryption);
+        return client(uri, null, null, encryption);
     }
 
-    /**
-     * Creates a MongoClient with enhanced connection support and database-specific configuration
-     * 
-     * @param uri Connection string (mongodb:// for DocumentDB, mongodb+srv:// for MongoDB Atlas)
-     * @param tlsConfig TLS-specific configuration including certificate settings (optional)
-     * @param encryption Encryption configuration (optional)
-     * @return Configured MongoClient
-     */
     public static MongoClient client(String uri, Document tlsConfig, Document encryption) {
-        MongoClientSettings settings = buildClientSettings(uri, tlsConfig, encryption);
+        return client(uri, tlsConfig, null, encryption);
+    }
+
+    public static MongoClient client(String uri, Document tlsConfig, Document connectionPoolSettings, Document encryption) {
+        MongoClientSettings settings = buildClientSettings(uri, tlsConfig, connectionPoolSettings, encryption);
         
         if (!isOn(encryption)) {
             return MongoClients.create(settings);
         } else {
-            return createEncryptedClient(uri, tlsConfig, encryption, settings);
+            return createEncryptedClient(uri, tlsConfig, connectionPoolSettings, encryption, settings);
         }
     }
 
-    /**
-     * Builds MongoClientSettings based on connection string type and configuration
-     */
-    private static MongoClientSettings buildClientSettings(String uri, Document tlsConfig, Document encryption) {
+    private static MongoClientSettings buildClientSettings(String uri, Document tlsConfig, Document connectionPoolSettings, Document encryption) {
         ConnectionString connectionString = new ConnectionString(uri);
         MongoClientSettings.Builder settingsBuilder = MongoClientSettings.builder()
             .applyConnectionString(connectionString)
@@ -103,15 +99,17 @@ public class EnhancedMongoClientHelper {
             .retryWrites(true)
             .retryReads(true);
 
-        // Check if this is a DocumentDB connection (standard mongodb:// scheme)
+        applyConnectionPoolSettings(settingsBuilder, connectionPoolSettings);
+
         if (isDocumentDBConnection(uri)) {
             applyDocumentDBSettings(settingsBuilder, tlsConfig);
         } else {
-            // MongoDB Atlas or standard MongoDB
             if (tlsConfig != null) {
                 applyCustomTLSSettings(settingsBuilder, tlsConfig);
             }
         }
+
+        logClientConfiguration(uri, connectionPoolSettings);
 
         return settingsBuilder.build();
     }
@@ -165,6 +163,91 @@ public class EnhancedMongoClientHelper {
     /**
      * Applies custom TLS settings for other connection types
      */
+    private static void applyConnectionPoolSettings(MongoClientSettings.Builder settingsBuilder, Document poolConfig) {
+        if (poolConfig == null) {
+            LOGGER.debug("Using default connection pool settings");
+            return;
+        }
+
+        Integer maxPoolSize = poolConfig.getInteger("maxPoolSize");
+        Integer minPoolSize = poolConfig.getInteger("minPoolSize");
+        Integer maxConnecting = poolConfig.getInteger("maxConnecting");
+        Integer waitQueueTimeout = poolConfig.getInteger("waitQueueTimeout");
+        Integer socketTimeout = poolConfig.getInteger("socketTimeout");
+        List<String> compressors = poolConfig.getList("compressors", String.class);
+
+        settingsBuilder.applyToConnectionPoolSettings(builder -> {
+            if (maxPoolSize != null) {
+                builder.maxSize(maxPoolSize);
+            }
+            if (minPoolSize != null) {
+                builder.minSize(minPoolSize);
+            }
+            if (maxConnecting != null) {
+                builder.maxConnecting(maxConnecting);
+            }
+            if (waitQueueTimeout != null) {
+                builder.maxWaitTime(waitQueueTimeout, TimeUnit.MILLISECONDS);
+            }
+        });
+
+        settingsBuilder.applyToSocketSettings(builder -> {
+            if (socketTimeout != null) {
+                builder.readTimeout(socketTimeout, TimeUnit.MILLISECONDS);
+            }
+        });
+
+        if (compressors != null && !compressors.isEmpty()) {
+            List<MongoCompressor> compressorList = compressors.stream()
+                .map(c -> {
+                    switch (c.toLowerCase()) {
+                        case "snappy":
+                            return MongoCompressor.createSnappyCompressor();
+                        case "zstd":
+                            return MongoCompressor.createZstdCompressor();
+                        case "zlib":
+                            return MongoCompressor.createZlibCompressor();
+                        default:
+                            LOGGER.warn("Unknown compressor: {}, ignoring", c);
+                            return null;
+                    }
+                })
+                .filter(c -> c != null)
+                .collect(Collectors.toList());
+            
+            if (!compressorList.isEmpty()) {
+                settingsBuilder.compressorList(compressorList);
+            }
+        }
+    }
+
+    private static void logClientConfiguration(String uri, Document poolConfig) {
+        String maskedUri = uri.replaceAll("://[^@]+@", "://***:***@");
+        
+        LOGGER.info("MongoDB Client Configuration:");
+        LOGGER.info("  Connection String: {}", maskedUri);
+        LOGGER.info("  Server API: V1");
+        LOGGER.info("  Retry Writes: true");
+        LOGGER.info("  Retry Reads: true");
+
+        if (poolConfig != null) {
+            LOGGER.info("  Max Pool Size: {}", poolConfig.getInteger("maxPoolSize", 100));
+            LOGGER.info("  Min Pool Size: {}", poolConfig.getInteger("minPoolSize", 0));
+            LOGGER.info("  Max Connecting: {}", poolConfig.getInteger("maxConnecting", 2));
+            LOGGER.info("  Wait Queue Timeout: {}ms", poolConfig.getInteger("waitQueueTimeout", 120000));
+            LOGGER.info("  Socket Timeout: {}ms", poolConfig.getInteger("socketTimeout", 0));
+            
+            List<String> compressors = poolConfig.getList("compressors", String.class);
+            if (compressors != null && !compressors.isEmpty()) {
+                LOGGER.info("  Compressors: {}", compressors);
+            } else {
+                LOGGER.info("  Compressors: none");
+            }
+        } else {
+            LOGGER.info("  Using default connection pool settings");
+        }
+    }
+
     private static void applyCustomTLSSettings(MongoClientSettings.Builder settingsBuilder, Document tlsConfig) {
         if (tlsConfig == null) return;
 
@@ -252,7 +335,7 @@ public class EnhancedMongoClientHelper {
     /**
      * Creates an encrypted client with the given settings
      */
-    private static MongoClient createEncryptedClient(String uri, Document tlsConfig, Document encryption, MongoClientSettings baseSettings) {
+    private static MongoClient createEncryptedClient(String uri, Document tlsConfig, Document connectionPoolSettings, Document encryption, MongoClientSettings baseSettings) {
         var cryptSharedLibPath = getOrEnv(encryption, "sharedlib");
         var extraOptions = new HashMap<String, Object>();
         extraOptions.put("cryptSharedLibPath", cryptSharedLibPath);
@@ -277,7 +360,7 @@ public class EnhancedMongoClientHelper {
         }
 
         // Build key vault client settings with same TLS configuration
-        var keyVaultSettings = buildClientSettings(keyVaultUri, tlsConfig, null);
+        var keyVaultSettings = buildClientSettings(keyVaultUri, tlsConfig, connectionPoolSettings, null);
         var clientEncryptionSettings = ClientEncryptionSettings.builder()
             .keyVaultMongoClientSettings(keyVaultSettings)
             .keyVaultNamespace(encryption.getString("keyVaultNamespace"))
