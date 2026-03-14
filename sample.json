@@ -13,6 +13,10 @@
         "port": 3000,
         "host": "localhost"
     },
+    "prometheus": {
+        "enabled": false,
+        "port": 9090
+    },
     "reportInterval": 10000,
     "templates": [
         {

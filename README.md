@@ -83,6 +83,7 @@ What's new?
 
 | Date       |                                                                                                |
 |------------|------------------------------------------------------------------------------------------------|
+| 2026-03-14 | Prometheus metrics endpoint for monitoring and observability                                   |
 | 2026-03-14 | Async execution with virtual threads and CompletableFuture for high concurrency               |
 | 2026-03-14 | Shard key distribution models (uniform, zipfian, monotonic, hotspot)                           |
 | 2026-03-14 | High-resolution latency histograms with HdrHistogram (p50/p90/p95/p99/p999)                   |

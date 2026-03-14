@@ -141,6 +141,16 @@
       <artifactId>HdrHistogram</artifactId>
       <version>2.2.2</version>
     </dependency>
+    <dependency>
+      <groupId>io.prometheus</groupId>
+      <artifactId>simpleclient</artifactId>
+      <version>0.16.0</version>
+    </dependency>
+    <dependency>
+      <groupId>io.prometheus</groupId>
+      <artifactId>simpleclient_httpserver</artifactId>
+      <version>0.16.0</version>
+    </dependency>
   </dependencies>
 
 </project>

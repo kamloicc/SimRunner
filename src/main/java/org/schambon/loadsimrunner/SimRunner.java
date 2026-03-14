@@ -22,6 +22,7 @@ import org.bson.Document;
 import org.schambon.loadsimrunner.client.EnhancedMongoClientHelper;
 import org.schambon.loadsimrunner.errors.InvalidConfigException;
 import org.schambon.loadsimrunner.http.HttpServer;
+import org.schambon.loadsimrunner.metrics.PrometheusMetricsExporter;
 import org.schambon.loadsimrunner.report.MongoReporter;
 import org.schambon.loadsimrunner.report.Reporter;
 import org.slf4j.Logger;
@@ -79,7 +80,8 @@ public class SimRunner {
         }
 
         var mongoReporter = new MongoReporter((Document) config.get("mongoReporter"));
-        var reporterCallbacks = Collections.singletonList(mongoReporter);
+        var prometheusExporter = new PrometheusMetricsExporter((Document) config.get("prometheus"));
+        var reporterCallbacks = Arrays.asList(mongoReporter, prometheusExporter);
 
         reporter.start(); // start the clock
         for (var workload: workloads) {
