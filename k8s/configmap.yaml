@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: simrunner-config
+  labels:
+    app: simrunner
+data:
+  workload.json: |
+    {
+      "connectionString": "$MONGO_URI",
+      "connectionPoolSettings": {
+        "maxPoolSize": 100,
+        "minPoolSize": 10,
+        "compressors": ["snappy", "zstd"]
+      },
+      "prometheus": {
+        "enabled": true,
+        "port": 9090
+      },
+      "reportInterval": 10000,
+      "templates": [
+        {
+          "name": "load_test",
+          "database": "benchmark",
+          "collection": "data",
+          "template": {
+            "_id": "%objectid",
+            "userId": "%natural",
+            "timestamp": "%now",
+            "data": "%lorem.sentence"
+          },
+          "remember": ["_id"]
+        }
+      ],
+      "workloads": [
+        {
+          "name": "Insert",
+          "template": "load_test",
+          "op": "insert",
+          "threads": 4,
+          "batch": 100
+        },
+        {
+          "name": "Find",
+          "template": "load_test",
+          "op": "find",
+          "params": {
+            "filter": {"_id": "#_id"}
+          },
+          "threads": 4
+        }
+      ]
+    }

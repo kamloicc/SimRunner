@@ -1005,6 +1005,105 @@ For instance if you are dealing with time series data, you may want to insert a 
 
 In the above example, for each batch of 100 values, the `sensor` variable is set once and inherited by template generation. Any variables set at the template level would, however, be re-evaluated every time a document is generated.
 
+Kubernetes Deployment
+---------------------
+
+SimRunner can be deployed to Kubernetes for distributed load testing at scale.
+
+### Build Container Image
+
+```bash
+docker build -t simrunner:latest .
+docker tag simrunner:latest your-registry/simrunner:latest
+docker push your-registry/simrunner:latest
+```
+
+### Deploy to Kubernetes
+
+1. **Create MongoDB connection secret:**
+
+```bash
+kubectl create secret generic mongodb-secret \
+  --from-literal=connection-string='mongodb+srv://user:pass@cluster.mongodb.net/db'
+```
+
+Or customize `k8s/secret.yaml.example` and apply:
+
+```bash
+cp k8s/secret.yaml.example k8s/secret.yaml
+# Edit k8s/secret.yaml with your connection string
+kubectl apply -f k8s/secret.yaml
+```
+
+2. **Customize workload configuration:**
+
+Edit `k8s/configmap.yaml` to define your workload, then apply:
+
+```bash
+kubectl apply -f k8s/configmap.yaml
+```
+
+3. **Deploy SimRunner:**
+
+Update image in `k8s/deployment.yaml` if using custom registry:
+
+```bash
+kubectl apply -f k8s/deployment.yaml
+kubectl apply -f k8s/service.yaml
+```
+
+### Scale Workers
+
+Scale the number of SimRunner pods generating load:
+
+```bash
+kubectl scale deployment simrunner --replicas=10
+```
+
+Each pod runs independently, generating load concurrently.
+
+### Monitor
+
+View logs:
+```bash
+kubectl logs -l app=simrunner -f
+```
+
+Access metrics (if Prometheus enabled):
+```bash
+kubectl port-forward svc/simrunner-metrics 9090:9090
+curl http://localhost:9090/metrics
+```
+
+### Cleanup
+
+```bash
+kubectl delete -f k8s/
+kubectl delete secret mongodb-secret
+```
+
+### Horizontal Scaling Strategy
+
+- Each pod = independent worker
+- All pods run the same workload
+- Use `stopAfter` or `stopAfterDuration` to control per-pod duration
+- Aggregate metrics via Prometheus or MongoDB reporter
+- For unique data: Use `%sequence` or `%threadSequence` in templates
+
+### Resource Tuning
+
+Adjust per-pod resources in `k8s/deployment.yaml`:
+
+```yaml
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 2
+    memory: 4Gi
+```
+
 Limitations
 -----------
 

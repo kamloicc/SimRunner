@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simrunner
+  labels:
+    app: simrunner
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: simrunner
+  template:
+    metadata:
+      labels:
+        app: simrunner
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: simrunner
+        image: simrunner:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: MONGO_URI
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: connection-string
+        - name: JAVA_OPTS
+          value: "-Xmx2g -Xms512m"
+        volumeMounts:
+        - name: config
+          mountPath: /config
+          readOnly: true
+        ports:
+        - containerPort: 3000
+          name: http
+          protocol: TCP
+        - containerPort: 9090
+          name: metrics
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2
+            memory: 4Gi
+        livenessProbe:
+          tcpSocket:
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: simrunner-config
