@@ -17,6 +17,16 @@
         "enabled": false,
         "port": 9090
     },
+    "sizing": {
+        "enabled": false,
+        "opsPerCore": 4000,
+        "indexRatio": 0.3,
+        "replicationFactor": 3,
+        "maxShardSizeTB": 2.0,
+        "workingSetGB": 50,
+        "avgDocSizeBytes": 1024,
+        "estimatedDocsMillions": 100
+    },
     "reportInterval": 10000,
     "templates": [
         {

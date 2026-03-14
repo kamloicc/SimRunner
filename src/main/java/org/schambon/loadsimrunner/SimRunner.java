@@ -25,6 +25,9 @@ import org.schambon.loadsimrunner.http.HttpServer;
 import org.schambon.loadsimrunner.metrics.PrometheusMetricsExporter;
 import org.schambon.loadsimrunner.report.MongoReporter;
 import org.schambon.loadsimrunner.report.Reporter;
+import org.schambon.loadsimrunner.sizing.ClusterSizingAnalyzer;
+import org.schambon.loadsimrunner.sizing.SizingConfig;
+import org.schambon.loadsimrunner.sizing.SizingReport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,6 +76,19 @@ public class SimRunner {
 
     public void start() {
         validateConfig();
+        
+        SizingConfig sizingConfig = new SizingConfig((Document) config.get("sizing"));
+        if (sizingConfig.enabled) {
+            ClusterSizingAnalyzer sizingAnalyzer = new ClusterSizingAnalyzer(sizingConfig);
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                LOGGER.info("Shutdown detected, generating cluster sizing recommendation...");
+                SizingReport sizingReport = sizingAnalyzer.analyze(reporter.getAllReports());
+                if (sizingReport != null) {
+                    System.out.println(sizingReport.toString());
+                }
+            }));
+        }
+        
         for (var templates : templatesByBaseName.values()) {
             for (var template : templates) {
                 template.initialize(client);
@@ -83,7 +99,7 @@ public class SimRunner {
         var prometheusExporter = new PrometheusMetricsExporter((Document) config.get("prometheus"));
         var reporterCallbacks = Arrays.asList(mongoReporter, prometheusExporter);
 
-        reporter.start(); // start the clock
+        reporter.start();
         for (var workload: workloads) {
             workload.initAndStart(client);
         }
