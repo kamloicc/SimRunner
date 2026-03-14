@@ -113,6 +113,46 @@
                 "class": "org.schambon.loadsimrunner.sample.SampleCustomRunner"
             },
             "pace": 100
+        },
+        {
+            "disabled": true,
+            "name": "Mixed workload",
+            "template": "person",
+            "op": "mix",
+            "mix": [
+                {
+                    "op": "find",
+                    "weight": 60,
+                    "params": {
+                        "filter": {"first": "#first"},
+                        "limit": 10
+                    }
+                },
+                {
+                    "op": "insert",
+                    "weight": 20
+                },
+                {
+                    "op": "updateOne",
+                    "weight": 15,
+                    "params": {
+                        "filter": {"_id": "#_id"},
+                        "update": {"$set": {"lastUpdate": "%now"}}
+                    }
+                },
+                {
+                    "op": "aggregate",
+                    "weight": 5,
+                    "params": {
+                        "pipeline": [
+                            {"$match": {"first": "#first"}},
+                            {"$count": "total"}
+                        ]
+                    }
+                }
+            ],
+            "threads": 4,
+            "pace": 10
         }
  
     ]

@@ -83,6 +83,7 @@ What's new?
 
 | Date       |                                                                                                |
 |------------|------------------------------------------------------------------------------------------------|
+| 2026-03-14 | Mixed workload support with weighted operations for realistic load testing                     |
 | 2026-03-14 | Configurable connection pool settings for load testing optimization                            |
 | 2026-03-13 | Upgraded to MongoDB Java Driver 5.2.1 with MongoDB 6/7/8 compatibility                         |
 | 2025-10-22 | Support for all index properties                                                               |

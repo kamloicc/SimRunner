@@ -23,6 +23,7 @@ import org.schambon.loadsimrunner.runner.InsertRunner;
 import org.schambon.loadsimrunner.runner.ReplaceOneRunner;
 import org.schambon.loadsimrunner.runner.ReplaceWithNewRunner;
 import org.schambon.loadsimrunner.runner.TimeSeriesRunner;
+import org.schambon.loadsimrunner.runner.MixedWorkloadRunner;
 import org.schambon.loadsimrunner.runner.UpdateManyRunner;
 import org.schambon.loadsimrunner.runner.UpdateOneRunner;
 import org.schambon.loadsimrunner.runner.WorkloadThread;
@@ -39,6 +40,7 @@ public class WorkloadManager {
     String op; 
     Document params = null;
     Document variables = null;
+    List<Document> mix = null;
     int threads;
     int batch;
     int pace;
@@ -84,6 +86,15 @@ public class WorkloadManager {
             this.params = new Document();
         }
         this.variables = (Document) config.get("variables");
+        
+        if ("mix".equals(this.op)) {
+            @SuppressWarnings("unchecked")
+            List<Document> mixList = (List<Document>) config.get("mix");
+            if (mixList == null || mixList.isEmpty()) {
+                throw new InvalidConfigException("Mix operation requires 'mix' array with weighted operations");
+            }
+            this.mix = mixList;
+        }
         this.threads = config.getInteger("threads", 1);
         this.batch =  config.getInteger("batch", 0);
         this.pace = config.getInteger("pace", 0);
@@ -187,6 +198,7 @@ public class WorkloadManager {
             case "custom": return new CustomRunner(this, reporter);
             case "kafkaInsert": return new KafkaInsertRunner(this, reporter);
             case "jdbc": return new JDBCRunner(this, reporter);
+            case "mix": return new MixedWorkloadRunner(this, reporter, mix);
             default:
                 LOGGER.warn("Not implemented (yet?)");
                 return new Runnable() {
